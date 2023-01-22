@@ -3,13 +3,13 @@ import { TableFeature } from '../core/table'
 import { BuiltInFilterFn, filterFns } from '../filterFns'
 import {
   Column,
-  OnChangeFn,
-  Table,
-  Row,
-  Updater,
-  RowData,
-  FilterMeta,
   FilterFns,
+  FilterMeta,
+  OnChangeFn,
+  Row,
+  RowData,
+  Table,
+  Updater,
 } from '../types'
 import { functionalUpdate, isFunction, makeStateUpdater } from '../utils'
 
@@ -210,6 +210,7 @@ interface FiltersOptionsBase<TData extends RowData> {
     * @link [Guide](https://tanstack.com/table/v8/docs/guide/filters)
    */
   maxLeafRowFilterDepth?: number
+  getPreGlobalFiltering?: (table: Table<any>) => () => RowModel<any>
 
   // Column
   /**
@@ -316,6 +317,7 @@ export interface FiltersInstance<TData extends RowData> {
   _getGlobalFacetedMinMaxValues?: () => undefined | [number, number]
   _getGlobalFacetedRowModel?: () => RowModel<TData>
   _getGlobalFacetedUniqueValues?: () => Map<any, number>
+  _getPreGlobalFiltering?: () => RowModel<TData>
   /**
    * Currently, this function returns the built-in `includesString` filter function. In future releases, it may return more dynamic filter functions based on the nature of the data provided.
    * @link [API Docs](https://tanstack.com/table/v8/docs/api/features/filters#getglobalautofilterfn)
@@ -346,6 +348,11 @@ export interface FiltersInstance<TData extends RowData> {
    * @link [Guide](https://tanstack.com/table/v8/docs/guide/filters)
    */
   getGlobalFilterFn: () => FilterFn<TData> | undefined
+  /**
+   * Returns the values after global filters are applied but before other filters are applied.
+   * This is part of our fork so there's no docs.
+   */
+  getPreGlobalFiltering: () => RowModel<TData>
   /**
    * Resets the **globalFilter** state to `initialState.globalFilter`, or `true` can be passed to force a default blank state reset to `undefined`.
    * @link [API Docs](https://tanstack.com/table/v8/docs/api/features/filters#resetglobalfilter)
@@ -612,7 +619,21 @@ export const Filters: TableFeature = {
 
       return table._getFilteredRowModel()
     }
+    table.getPreGlobalFiltering = () => {
+      if (
+        !table._getPreGlobalFiltering &&
+        table.options.getPreGlobalFiltering
+      ) {
+        table._getPreGlobalFiltering =
+          table.options.getPreGlobalFiltering(table)
+      }
 
+      if (table.options.manualFiltering || !table._getPreGlobalFiltering) {
+        return table.getPreFilteredRowModel()
+      }
+
+      return table._getPreGlobalFiltering()
+    }
     table._getGlobalFacetedRowModel =
       table.options.getFacetedRowModel &&
       table.options.getFacetedRowModel(table, '__global__')
